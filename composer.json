@@ -1,5 +1,5 @@
 {
-    "name": "tamer/monolog-loki",
+    "name": "tamert/monolog-loki",
     "description": "Monolog handler for Grafana Loki (PHP 7.2 compatible)",
     "type": "library",
     "license": "MIT",
