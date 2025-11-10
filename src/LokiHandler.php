@@ -1,99 +1,68 @@
 <?php
 
-declare(strict_types=1);
+namespace Tamert\MonologLoki\Handler;
 
-namespace TomasKulhanek\Monolog\Loki;
+use Monolog\Handler\AbstractProcessingHandler;
+use Monolog\Logger;
 
-use Monolog\Handler\BufferHandler;
-use Monolog\Level;
-use Monolog\LogRecord;
-
-class LokiHandler extends BufferHandler
+/**
+ * Simplified Loki handler compatible with PHP 7.2 + Monolog 2.x
+ */
+class LokiHandler extends AbstractProcessingHandler
 {
-    public const DEFAULT_BUBBLE = true;
-    public const DEFAULT_BUFFER_LIMIT = 1000;
-    public const DEFAULT_FLUSH_ON_OVERFLOW = true;
-    public const DEFAULT_FLUSH_INTERVAL_MILLISECONDS = 5000;
-    private ?float $highResolutionTimeOfNextFlush;
-    private readonly SynchronousLokiHandler $syncHandler;
+    /** @var string */
+    private $lokiUrl;
 
-    /**
-     * @param array<string, string> $labels
-     */
+    /** @var array */
+    private $labels;
+
     public function __construct(
-        string $endpoint,
-        string $username,
-        string $password,
-        array $labels = [],
-        int|string|Level $level = Level::Debug,
-        bool $bubble = self::DEFAULT_BUBBLE,
-        int $bufferLimit = self::DEFAULT_BUFFER_LIMIT,
-        bool $flushOnOverflow = self::DEFAULT_FLUSH_ON_OVERFLOW,
-        int $connectionTimeoutMs = LokiClient::DEFAULT_CONNECTION_TIMEOUT_MILLISECONDS,
-        int $timeoutMs = LokiClient::DEFAULT_TIMEOUT_MILLISECONDS,
-        private readonly ?int $flushIntervalMs = self::DEFAULT_FLUSH_INTERVAL_MILLISECONDS,
-        bool $throwExceptions = SynchronousLokiHandler::DEFAULT_THROW_EXCEPTION,
-        ?SynchronousLokiHandler $syncHandler = null
+        string $lokiUrl,
+        array $labels = ['app' => 'php-app'],
+        $level = Logger::DEBUG,
+        bool $bubble = true
     ) {
-        $this->syncHandler = $syncHandler ?? new SynchronousLokiHandler(
-            $username,
-            $password,
-            $endpoint,
-            $level,
-            $labels,
-            $bubble,
-            $connectionTimeoutMs,
-            $timeoutMs,
-            $throwExceptions
-        );
-        parent::__construct(
-            $this->syncHandler,
-            $bufferLimit,
-            $level,
-            $bubble,
-            $flushOnOverflow
-        );
-        $this->setHighResolutionTimeOfLastFlush();
+        $this->lokiUrl = $lokiUrl;
+        $this->labels = $labels;
+        parent::__construct($level, $bubble);
     }
 
     /**
-     * @inheritDoc
+     * @param array $record
      */
-    public function handle(LogRecord $record): bool
+    protected function write(array $record): void
     {
-        $return = parent::handle($record);
+        $timestamp = (string) (microtime(true) * 1e9);
 
-        if ($this->highResolutionTimeOfNextFlush !== null && $this->highResolutionTimeOfNextFlush <= hrtime(true)) {
-            $this->flush();
-            $this->setHighResolutionTimeOfLastFlush();
-        }
+        $entry = [
+            'streams' => [[
+                'stream' => $this->labels,
+                'values' => [[$timestamp, $record['formatted']]],
+            ]],
+        ];
 
-        return $return;
+        $this->sendToLoki($entry);
     }
 
-    public function flush(): void
+    /**
+     * Sends data to Loki via HTTP POST
+     */
+    private function sendToLoki(array $entry): void
     {
-        parent::flush();
-        $this->setHighResolutionTimeOfLastFlush();
-    }
-
-    private function setHighResolutionTimeOfLastFlush(): void
-    {
-        if ($this->flushIntervalMs === null) {
-            $this->highResolutionTimeOfNextFlush = null;
+        $payload = json_encode($entry);
+        if ($payload === false) {
             return;
         }
 
-        $this->highResolutionTimeOfNextFlush = hrtime(true) + $this->flushIntervalMs * 1e+6;
-    }
+        $ch = curl_init($this->lokiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+        ]);
 
-    /**
-     * @inheritDoc
-     */
-    public function setLevel(int|string|Level $level): self
-    {
-        parent::setLevel($level);
-        $this->syncHandler->setLevel($level);
-        return $this;
+        curl_exec($ch);
+        curl_close($ch);
     }
 }
