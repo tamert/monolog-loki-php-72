@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace TomasKulhanek\Monolog\Loki;
+namespace Tamert\MonologLoki\Loki;
 
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Handler\AbstractProcessingHandler;
