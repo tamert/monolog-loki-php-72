@@ -1,54 +1,23 @@
 <?php
 
-declare(strict_types=1);
+namespace Tamert\MonologLoki\Loki;
 
-namespace TomasKulhanek\Monolog\Loki;
+use Monolog\Formatter\NormalizerFormatter;
 
-use Monolog\Formatter\JsonFormatter;
-use Monolog\LogRecord;
-use Monolog\Utils;
-
-class LokiJsonFormatter extends JsonFormatter
+/**
+ * Simple Loki formatter for Monolog 2.x
+ */
+class LokiFormatter extends NormalizerFormatter
 {
-    /**
-     * @param array<string, string> $labels
-     */
-    public function __construct(private readonly array $labels = [])
+    public function format(array $record)
     {
-        parent::__construct(self::BATCH_MODE_NEWLINES, includeStacktraces: true);
-        $this->setMaxNormalizeItemCount(PHP_INT_MAX);
-    }
+        $normalized = parent::format($record);
 
-    public function format(LogRecord $record): string
-    {
-        return $this->formatBatch([$record]);
-    }
+        $message = isset($normalized['message']) ? $normalized['message'] : '';
+        $context = isset($normalized['context']) && !empty($normalized['context'])
+            ? json_encode($normalized['context'])
+            : '';
 
-    protected function toJson($data, bool $ignoreErrors = false): string
-    {
-        return Utils::jsonEncode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE, $ignoreErrors);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function formatBatch(array $records): string
-    {
-        return $this->toJson([
-            'streams' => [
-                [
-                    'stream' => $this->labels,
-                    'values' => array_map(fn(LogRecord $record) => [
-                        $this->getNanosecondTimestamp($record->datetime),
-                        $this->toJson($this->normalizeRecord($record))
-                    ], $records)
-                ]
-            ]
-        ], true);
-    }
-
-    private function getNanosecondTimestamp(\DateTimeInterface $dt): string
-    {
-        return (string) ($dt->getTimestamp() * 1_000_000_000 + ((int) $dt->format('u')) * 1_000);
+        return trim($message . ' ' . $context);
     }
 }
