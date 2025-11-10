@@ -1,5 +1,5 @@
 {
-  "name": "tomas-kulhanek/monolog-loki",
+  "name": "tamert/monolog-loki",
   "description": "Loki handler for Monolog",
   "homepage": "https://github.com/tomas-kulhanek/monolog-loki",
   "type": "library",
@@ -14,8 +14,8 @@
     "loki"
   ],
   "require": {
-    "php": ">=8.2",
-    "monolog/monolog": "^3",
+  "php": ">=7.2",
+    "monolog/monolog": "^2.0"
     "ext-curl": "*"
   },
   "require-dev": {
