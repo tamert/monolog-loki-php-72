@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace TomasKulhanek\Monolog\Loki;
+namespace Tamert\Monolog\Loki;
 
 use CurlHandle;
 use RuntimeException;
